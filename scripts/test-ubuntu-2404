@@ -10,8 +10,9 @@ usage:
   test-ubuntu-2404 [--shell] [--no-build]
 
 what it does:
-  - builds an ubuntu 24.04 container image with nix (single-user install)
+  - builds a container image from nixos/nix (git installed at first run)
   - mounts this repo at /src/dotfiles
+  - runs with seccomp=unconfined so nix can run (required on OrbStack/Docker)
   - by default runs:
       nix flake check
       nix build .#packages.x86_64-linux.dockerTarball
@@ -35,47 +36,38 @@ while [[ $# -gt 0 ]]; do
 done
 
 docker build --platform linux/amd64 -t "$image" - <<'DOCKERFILE'
-FROM ubuntu:24.04
+# Official Nix image (no nix build during docker build - seccomp fails in OrbStack/Docker)
+FROM nixos/nix:latest
 
-ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
-  ca-certificates \
-  curl \
-  git \
-  xz-utils \
-  && rm -rf /var/lib/apt/lists/*
+# Disable sandbox so nix works at runtime under Docker/OrbStack seccomp
+RUN echo 'sandbox = false' >> /etc/nix/nix.conf
+ENV NIX_CONFIG="sandbox = false"
 
-# create a non-root user for nix --no-daemon install
-RUN useradd -m -s /bin/bash nix && mkdir -m 0755 /nix && chown nix /nix
-USER nix
-ENV USER=nix HOME=/home/nix
-
-# install nix (single-user) without touching shell profiles
-ENV NIX_INSTALLER_NO_MODIFY_PROFILE=1
-RUN curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon
-
-ENV PATH=/home/nix/.nix-profile/bin:/home/nix/.nix-profile/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
+# homeConfigurations.nix@ubuntu expects user nix and HOME=/home/nix (create without useradd/adduser)
+RUN echo 'nix:x:1000:1000:nix user:/home/nix:/bin/bash' >> /etc/passwd && \
+    echo 'nix:x:1000:' >> /etc/group && \
+    mkdir -p /home/nix && chown 1000:1000 /home/nix
 WORKDIR /src/dotfiles
+# run as root so nix is on PATH; we set HOME=/home/nix when running activation
 DOCKERFILE
 
-run_cmd=(
-  bash -lc
-)
+# Install git on first run (needs seccomp=unconfined); then run the actual command
+bootstrap='nix-env -iA nixpkgs.git 2>/dev/null || true'
+run_cmd=( bash -lc )
 
 if "$shell"; then
-  run_cmd+=("echo 'Setting up home environment...' && nix --extra-experimental-features 'nix-command flakes' run .#homeConfigurations.nix@ubuntu.activationPackage && echo 'Home environment ready!' && exec bash -l")
+  run_cmd+=("$bootstrap && echo 'Setting up home environment...' && chown root:root /home/nix && HOME=/home/nix nix --extra-experimental-features 'nix-command flakes' run .#homeConfigurations.nix@ubuntu.activationPackage && chown -R 1000:1000 /home/nix && echo 'Home environment ready!' && exec su - nix")
 else
   if "$no_build"; then
-    run_cmd+=("nix --extra-experimental-features 'nix-command flakes' flake check")
+    run_cmd+=("$bootstrap && nix --extra-experimental-features 'nix-command flakes' flake check")
   else
-    run_cmd+=("nix --extra-experimental-features 'nix-command flakes' flake check && nix --extra-experimental-features 'nix-command flakes' build .#packages.x86_64-linux.dockerTarball")
+    run_cmd+=("$bootstrap && nix --extra-experimental-features 'nix-command flakes' flake check && nix --extra-experimental-features 'nix-command flakes' build .#packages.x86_64-linux.dockerTarball")
   fi
 fi
 
-docker_flags="--rm"
+docker_flags="--rm --security-opt seccomp=unconfined"
 if [ -t 0 ] && [ -t 1 ]; then
-  docker_flags="--rm -it"
+  docker_flags="--rm -it --security-opt seccomp=unconfined"
 fi
 
 exec docker run --platform linux/amd64 $docker_flags \

@@ -52,9 +52,35 @@ HOME=/tmp/hm-test /tmp/hm-test/.nix-profile/bin/fish
 
 your real `~` is never used.
 
+### test with sprite (linux vm)
+
+use the [sprite](https://sprites.dev) CLI for a remote linux VM (no Docker seccomp issues).
+
+**1. Pin this repo to your dotfiles sprite** (one-time):
+
+```bash
+sprite use -o mail-janwerner-de dotfiles
+```
+
+**2. Open a shell on the sprite** – then clone the repo (or push and pull) and run nix:
+
+```bash
+sprite console
+# or: sprite c
+```
+
+**3. Run a one-off command on the sprite** (e.g. after cloning the repo there):
+
+```bash
+sprite exec -dir /path/to/dotfiles nix flake check
+sprite exec -dir /path/to/dotfiles nix build .#packages.x86_64-linux.dockerTarball
+```
+
+useful: `sprite list`, `sprite exec --help`, `sprite checkpoint create` / `sprite restore <id>`.
+
 ### linux docker image (host: linux)
 
-build a docker image tarball:
+build a docker image tarball (on a linux builder or use sprite for a linux env):
 
 ```bash
 export PATH=/nix/var/nix/profiles/default/bin:$PATH
