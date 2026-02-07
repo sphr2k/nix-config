@@ -92,6 +92,19 @@
             ];
           extraSpecialArgs = { inherit inputs; };
         };
+        # Sprite VM: same config, user sprite, home /home/sprite. Deploy with:
+        #   nix run .#homeConfigurations.sprite@linux.activationPackage
+        "sprite@linux" = home-manager.lib.homeManagerConfiguration {
+          pkgs = linuxPkgs;
+          modules = homeModules
+            ++ [
+              ({ lib, ... }: {
+                home.username = lib.mkForce "sprite";
+                home.homeDirectory = lib.mkForce "/home/sprite";
+              })
+            ];
+          extraSpecialArgs = { inherit inputs; };
+        };
       };
     };
 }

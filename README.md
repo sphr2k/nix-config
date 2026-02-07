@@ -62,21 +62,32 @@ use the [sprite](https://sprites.dev) CLI for a remote linux VM (no Docker secco
 sprite use -o mail-janwerner-de dotfiles
 ```
 
-**2. Open a shell on the sprite** – then clone the repo (or push and pull) and run nix:
+**2. Deploy your home config on the sprite** (from your machine; Nix is installed and repo cloned if missing):
+
+```bash
+sprite exec sh -c '
+  export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH
+  command -v nix >/dev/null || curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon --no-modify-profile
+  export PATH=$HOME/.nix-profile/bin:$PATH
+  [ -d /tmp/nix-config ] || git clone --depth 1 https://github.com/sphr2k/nix-config.git /tmp/nix-config
+  cd /tmp/nix-config && nix run .#homeConfigurations.sprite@linux.activationPackage
+'
+```
+
+**3. Use the sprite** – open a login shell so the new profile is in PATH:
 
 ```bash
 sprite console
-# or: sprite c
+# then: bash -l   (or just use the shell; fish/packages are in ~/.nix-profile)
 ```
 
-**3. Run a one-off command on the sprite** (e.g. after cloning the repo there):
+one-off commands (e.g. flake check):
 
 ```bash
-sprite exec -dir /path/to/dotfiles nix flake check
-sprite exec -dir /path/to/dotfiles nix build .#packages.x86_64-linux.dockerTarball
+sprite exec sh -c 'export PATH=$HOME/.nix-profile/bin:$PATH; cd /tmp/nix-config && nix flake check'
 ```
 
-useful: `sprite list`, `sprite exec --help`, `sprite checkpoint create` / `sprite restore <id>`.
+useful: `sprite list`, `sprite checkpoint create` / `sprite restore <id>`.
 
 ### linux docker image (host: linux)
 
