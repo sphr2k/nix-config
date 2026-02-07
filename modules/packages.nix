@@ -19,6 +19,7 @@
     eza
     gh
     glab
+    inetutils  # hostname for fish prompt
     grype
     helmfile
     jq

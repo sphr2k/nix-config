@@ -11,6 +11,11 @@
   programs.fish = {
     enable = true;
 
+    # PATH before anything else: config/prompt need whoami, hostname, etc. (minimal envs e.g. sprite)
+    shellInit = ''
+      set -gx PATH /nix/var/nix/profiles/default/bin $HOME/.nix-profile/bin $PATH
+    '';
+
     # 1. Use the "Nix way" for popular plugins (auto-updated by nix flake update)
     plugins = [
       # Enable Tide (prompt)
