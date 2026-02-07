@@ -6,8 +6,8 @@
 }:
 
 {
-  home.username = "jan.werner";
-  home.homeDirectory = "/Users/jan.werner";
+  home.username = "jan";
+  home.homeDirectory = "/home/jan";
 
   imports = [
     ../../modules/scripts.nix
@@ -19,6 +19,6 @@
 
   programs.home-manager.enable = true;
 
-  # do not change after first activation.
   home.stateVersion = "24.05";
 }
+

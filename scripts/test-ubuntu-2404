@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+image="dotfiles-ubuntu-nix:24.04"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+usage() {
+  cat <<'EOF'
+usage:
+  test-ubuntu-2404 [--shell] [--no-build]
+
+what it does:
+  - builds an ubuntu 24.04 container image with nix (single-user install)
+  - mounts this repo at /src/dotfiles
+  - by default runs:
+      nix flake check
+      nix build .#packages.x86_64-linux.dockerTarball
+
+options:
+  --shell     start an interactive bash in the container
+  --no-build  skip the nix build step (still runs flake check unless --shell)
+EOF
+}
+
+shell=false
+no_build=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --shell) shell=true; shift ;;
+    --no-build) no_build=true; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown arg: $1" >&2; usage; exit 2 ;;
+  esac
+done
+
+docker build --platform linux/amd64 -t "$image" - <<'DOCKERFILE'
+FROM ubuntu:24.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  ca-certificates \
+  curl \
+  git \
+  xz-utils \
+  && rm -rf /var/lib/apt/lists/*
+
+# create a non-root user for nix --no-daemon install
+RUN useradd -m -s /bin/bash nix && mkdir -m 0755 /nix && chown nix /nix
+USER nix
+ENV USER=nix HOME=/home/nix
+
+# install nix (single-user) without touching shell profiles
+ENV NIX_INSTALLER_NO_MODIFY_PROFILE=1
+RUN curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon
+
+ENV PATH=/home/nix/.nix-profile/bin:/home/nix/.nix-profile/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+WORKDIR /src/dotfiles
+DOCKERFILE
+
+run_cmd=(
+  bash -lc
+)
+
+if "$shell"; then
+  run_cmd+=("echo 'Setting up home environment...' && nix --extra-experimental-features 'nix-command flakes' run .#homeConfigurations.nix@ubuntu.activationPackage && echo 'Home environment ready!' && exec bash -l")
+else
+  if "$no_build"; then
+    run_cmd+=("nix --extra-experimental-features 'nix-command flakes' flake check")
+  else
+    run_cmd+=("nix --extra-experimental-features 'nix-command flakes' flake check && nix --extra-experimental-features 'nix-command flakes' build .#packages.x86_64-linux.dockerTarball")
+  fi
+fi
+
+docker_flags="--rm"
+if [ -t 0 ] && [ -t 1 ]; then
+  docker_flags="--rm -it"
+fi
+
+exec docker run --platform linux/amd64 $docker_flags \
+  -v "$repo_root:/src/dotfiles" \
+  "$image" \
+  "${run_cmd[@]}"
+

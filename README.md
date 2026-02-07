@@ -12,11 +12,59 @@ this repo is structured for multiple hosts.
 
 ### activate (mac)
 
-from the repo root:
+system activation must run as root. from the repo root:
 
 ```bash
-darwin-rebuild switch --flake .#mac
+export PATH=/nix/var/nix/profiles/default/bin:$PATH
+sudo nix --extra-experimental-features 'nix-command flakes' run 'github:LnL7/nix-darwin' -- switch --flake '.#mac'
+```
+
+once darwin-rebuild is on your PATH (after a successful switch), you can use:
+
+```bash
+sudo darwin-rebuild switch --flake '.#mac'
 ```
 
 to add another machine later, copy `hosts/mac` to `hosts/<new-host>` and add a new `darwinConfigurations.<new-host>` entry.
+
+### test without touching your home
+
+**1. Build only (no apply)** – check that the config evaluates and builds:
+
+```bash
+export PATH=/nix/var/nix/profiles/default/bin:$PATH
+nix --extra-experimental-features 'nix-command flakes' run 'github:LnL7/nix-darwin' -- build --flake '.#mac'
+```
+
+**2. Run home-manager into a temp directory** – same config, applied to `/tmp/hm-test`:
+
+```bash
+export PATH=/nix/var/nix/profiles/default/bin:$PATH
+rm -rf /tmp/hm-test
+HOME=/tmp/hm-test nix run .#homeConfigurations.test@mac.activationPackage
+```
+
+then try the shell:
+
+```bash
+HOME=/tmp/hm-test /tmp/hm-test/.nix-profile/bin/fish
+```
+
+your real `~` is never used.
+
+### linux docker image (host: linux)
+
+build a docker image tarball:
+
+```bash
+export PATH=/nix/var/nix/profiles/default/bin:$PATH
+nix --extra-experimental-features 'nix-command flakes' build .#packages.x86_64-linux.dockerTarball
+```
+
+load and run:
+
+```bash
+docker import result/tarball/*.tar.xz dotfiles-linux:latest
+docker run --privileged -it --rm dotfiles-linux:latest /init
+```
 
