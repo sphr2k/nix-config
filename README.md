@@ -62,29 +62,32 @@ use the [sprite](https://sprites.dev) CLI for a remote linux VM (no Docker secco
 sprite use -o mail-janwerner-de dotfiles
 ```
 
-**2. Deploy your home config on the sprite** (from your machine; Nix is installed and repo cloned if missing):
+**2. Deploy your home config on the sprite** (from your machine; Nix is installed and repo cloned if missing). Back up existing `~/.config/fish/config.fish` first so standalone home-manager does not refuse to overwrite:
 
 ```bash
 sprite exec sh -c '
-  export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH
+  export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH}
   command -v nix >/dev/null || curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon --no-modify-profile
-  export PATH=$HOME/.nix-profile/bin:$PATH
+  export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH}
   [ -d /tmp/nix-config ] || git clone --depth 1 https://github.com/sphr2k/nix-config.git /tmp/nix-config
-  cd /tmp/nix-config && nix run .#homeConfigurations.sprite@linux.activationPackage
+  mkdir -p $HOME/.config/fish && [ -f $HOME/.config/fish/config.fish ] && mv $HOME/.config/fish/config.fish $HOME/.config/fish/config.fish.bak
+  cd /tmp/nix-config && nix run --extra-experimental-features nix-command --extra-experimental-features flakes .#homeConfigurations.sprite@linux.activationPackage
 '
 ```
 
-**3. Use the sprite** – open a login shell so the new profile is in PATH:
+**3. Use the sprite** – open a login shell. Fish sets PATH in its config (nix + `/usr/bin` etc.); if you use bash first, **prepend** nix so system paths stay:
 
 ```bash
 sprite console
-# then: bash -l   (or just use the shell; fish/packages are in ~/.nix-profile)
+# If you need to fix PATH in bash (prepend nix, keep /usr/bin):
+# export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH
+# then: fish   or  bash -l
 ```
 
 one-off commands (e.g. flake check):
 
 ```bash
-sprite exec sh -c 'export PATH=$HOME/.nix-profile/bin:$PATH; cd /tmp/nix-config && nix flake check'
+sprite exec sh -c 'export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH; cd /tmp/nix-config && nix flake check'
 ```
 
 useful: `sprite list`, `sprite checkpoint create` / `sprite restore <id>`.

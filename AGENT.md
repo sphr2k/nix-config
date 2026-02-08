@@ -39,3 +39,8 @@ Make this repo a reproducible macOS dev environment using:
 - Install `mise` via Nix.
 - Activate mise from fish using `mise activate fish | source`.
 - Runtime versions belong in project repos via `mise.toml`, not in this repo.
+
+## Environment (universal)
+- Universal session variables live in `modules/env.nix` (imported by all hosts).
+- Do not put env vars in host-specific config; add them to `env.nix` so they apply everywhere.
+- Example: `TENV_AUTO_INSTALL=true` for tenv is set in `modules/env.nix`.

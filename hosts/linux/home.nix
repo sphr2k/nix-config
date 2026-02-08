@@ -12,6 +12,7 @@
   imports = [
     ../../modules/scripts.nix
     ../../modules/packages.nix
+    ../../modules/env.nix
     ../../modules/kubeswitch.nix
     ../../modules/fish.nix
     ../../modules/mise.nix

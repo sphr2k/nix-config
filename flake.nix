@@ -74,10 +74,7 @@
           pkgs = darwinPkgs;
           modules = homeModules
             ++ [
-              {
-                home.username = "test";
-                home.homeDirectory = "/tmp/hm-test";
-              }
+              { home.username = "test"; home.homeDirectory = "/tmp/hm-test"; }
             ];
           extraSpecialArgs = { inherit inputs; };
         };

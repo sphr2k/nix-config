@@ -7,40 +7,77 @@
   ...
 }:
 
+let
+  isDarwin = pkgs.stdenv.isDarwin;
+  # orefalo/grc: command colorizer for fish; works with Nix grc (no Homebrew). See https://github.com/orefalo/grc
+  grcPlugin = [
+    {
+      name = "grc";
+      src = pkgs.fetchFromGitHub {
+        owner = "orefalo";
+        repo = "grc";
+        rev = "60dba884018e22e48f0a390682304880d1bde38e";
+        hash = "sha256-qg7YCzWUsND+rpIZupyDR2xa3wdlHl1ol/DCgqdCA1M=";
+      };
+    }
+  ];
+  # Plugins that assume Homebrew: enable only on macOS.
+  brewPlugins = lib.optionals isDarwin [
+    {
+      name = "plugin-brew";
+      src = pkgs.fetchFromGitHub {
+        owner = "oh-my-fish";
+        repo = "plugin-brew";
+        rev = "328fc82e1c8e6fd5edc539de07e954230a9f2cef";
+        hash = "sha256-ny82EAz0K4XYASEP/K8oxyhyumrITwC5lLRd+HScmNQ=";
+      };
+    }
+    {
+      name = "plugin-osx";
+      src = pkgs.fetchFromGitHub {
+        owner = "oh-my-fish";
+        repo = "plugin-osx";
+        rev = "27039b251201ec2e70d8e8052cbc59fa0ac3b3cd";
+        hash = "sha256-jSUIk3ewM6QnfoAtp16l96N1TlX6vR0d99dvEH53Xgw=";
+      };
+    }
+    {
+      name = "fish-brew";
+      src = pkgs.fetchFromGitHub {
+        owner = "halostatue";
+        repo = "fish-brew";
+        rev = "335d0c56d8ffaf8c060a2242a73ef90412c91e13";
+        hash = "sha256-c9LeDMndnOaVA7InMMDe/e5qnAbg/WVqPp9JrNYwnO8=";
+      };
+    }
+  ];
+in
 {
   programs.fish = {
     enable = true;
 
-    # PATH before anything else: config/prompt need whoami, hostname, etc. (minimal envs e.g. sprite)
+    # PATH and Tide vars before plugins load (Tide needs these set for prompt to show)
     shellInit = ''
-      set -gx PATH /nix/var/nix/profiles/default/bin $HOME/.nix-profile/bin $PATH
+      set -gx PATH /nix/var/nix/profiles/default/bin $HOME/.nix-profile/bin /usr/bin /bin /usr/sbin /sbin $PATH
+      # Tide: matches tide configure --auto --style=Lean --prompt_colors='True color' --show_time=No --lean_prompt_height='One line' --prompt_spacing=Compact --icons='Few icons' --transient=No
+      set -g tide_character_icon "λ"
+      set -g tide_prompt_color_separator_same_color 949494
+      set -U tide_style Lean
+      set -U tide_prompt_colors 'True color'
+      set -U tide_show_time No
+      set -U tide_lean_prompt_height 'One line'
+      set -U tide_prompt_spacing Compact
+      set -U tide_icons 'Few icons'
+      set -U tide_transient No
     '';
 
     # 1. Use the "Nix way" for popular plugins (auto-updated by nix flake update)
     plugins = [
-      # Enable Tide (prompt)
       { name = "tide"; src = pkgs.fishPlugins.tide.src; }
-      
-      # Enable fzf.fish (integration, not just the binary)
       { name = "fzf-fish"; src = pkgs.fishPlugins.fzf-fish.src; }
-      
-      # Essential for compatibility with Bash scripts (nvm, sdkman, etc.)
       { name = "foreign-env"; src = pkgs.fishPlugins.foreign-env.src; }
       { name = "bass"; src = pkgs.fishPlugins.bass.src; }
-      
-      # Colorize command output
-      { name = "grc"; src = pkgs.fishPlugins.grc.src; }
-
-      # -- Custom/Manual Plugins (Use only for things not in nixpkgs) --
-      {
-        name = "plugin-brew";
-        src = pkgs.fetchFromGitHub {
-          owner = "oh-my-fish";
-          repo = "plugin-brew";
-          rev = "328fc82e1c8e6fd5edc539de07e954230a9f2cef";
-          hash = "sha256-ny82EAz0K4XYASEP/K8oxyhyumrITwC5lLRd+HScmNQ=";
-        };
-      }
+    ] ++ grcPlugin ++ [
       {
         name = "plugin-extract";
         src = pkgs.fetchFromGitHub {
@@ -48,15 +85,6 @@
           repo = "plugin-extract";
           rev = "5d05f9f15d3be8437880078171d1e32025b9ad9f";
           hash = "sha256-hFM8uDHDfKBVn4CgRdfRaD0SzmVzOPjfMxU9X6yATzE=";
-        };
-      }
-      {
-        name = "plugin-osx";
-        src = pkgs.fetchFromGitHub {
-          owner = "oh-my-fish";
-          repo = "plugin-osx";
-          rev = "27039b251201ec2e70d8e8052cbc59fa0ac3b3cd";
-          hash = "sha256-jSUIk3ewM6QnfoAtp16l96N1TlX6vR0d99dvEH53Xgw=";
         };
       }
       {
@@ -69,15 +97,6 @@
         };
       }
       {
-        name = "fish-brew";
-        src = pkgs.fetchFromGitHub {
-          owner = "halostatue";
-          repo = "fish-brew";
-          rev = "335d0c56d8ffaf8c060a2242a73ef90412c91e13";
-          hash = "sha256-c9LeDMndnOaVA7InMMDe/e5qnAbg/WVqPp9JrNYwnO8=";
-        };
-      }
-      {
         name = "fish-completion-sync";
         src = pkgs.fetchFromGitHub {
           owner = "pfgray";
@@ -86,24 +105,9 @@
           hash = "sha256-wmtMUVi/NmbvJtrPbORPhAwXgnILvm4rjOtjl98GcWA=";
         };
       }
-    ];
+    ] ++ brewPlugins;
 
-    # 2. Configure Tide declaratively (optional, avoids the wizard)
-    interactiveShellInit = ''
-      set -g tide_character_icon "λ"
-      set -g tide_prompt_color_separator_same_color 949494
-      
-      # Configure Tide style
-      set -U tide_style Lean
-      set -U tide_prompt_colors 'True color'
-      set -U tide_show_time No
-      set -U tide_lean_prompt_height 'Two lines'
-      set -U tide_prompt_connection Solid
-      set -U tide_prompt_connection_andor_frame_color Dark
-      set -U tide_prompt_spacing Sparse
-      set -U tide_icons 'Many icons'
-      set -U tide_transient No
-    '';
+    interactiveShellInit = "";
   };
 
   # 3. Enable Tools via Modules (Fixes PATH issues automatically)
